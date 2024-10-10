@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, TableBody, TableCell, TableHead, TableRow, Typography, Box, Select, MenuItem, useMediaQuery } from '@mui/material';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { Card, Table, TableBody, TableCell, TableHead, TableRow, Typography, Box, Select, MenuItem, useMediaQuery, Button, Modal, TextField } from '@mui/material';
+import { collection, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore';
 import { db } from "./firebaseconfig";
 import { useTheme } from '@mui/material/styles';
 
 export default function App() {
   const [data, setData] = useState([]);
-  const [filterTrack, setFilterTrack] = useState(''); // Estado para almacenar el track seleccionado
-  const [tracks, setTracks] = useState([]); // Estado para almacenar los tracks únicos
+  const [filterTrack, setFilterTrack] = useState('');
+  const [tracks, setTracks] = useState([]);
+  const [open, setOpen] = useState(false); // Estado para controlar el modal
+  const [newEvent, setNewEvent] = useState({ nombre: '', expo: '', hora: '', track: '', estado: 'No ha comenzado' });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -20,8 +22,6 @@ export default function App() {
           ...doc.data(),
         }));
         setData(dataArray);
-
-        // Extraer todos los tracks únicos
         const uniqueTracks = [...new Set(dataArray.map(item => item.track))];
         setTracks(uniqueTracks);
       },
@@ -46,7 +46,24 @@ export default function App() {
     setFilterTrack(event.target.value);
   };
 
-  // Ordenar y filtrar los eventos
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewEvent(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddEvent = async () => {
+    try {
+      await addDoc(collection(db, 'devfest'), newEvent);
+      setNewEvent({ nombre: '', expo: '', hora: '', track: '', estado: 'No ha comenzado' });
+      handleClose();
+    } catch (error) {
+      console.error("Error al agregar el evento: ", error);
+    }
+  };
+
   const sortedData = [...data]
     .sort((a, b) => {
       if (a.estado === 'En proceso' && b.estado !== 'En proceso') {
@@ -63,7 +80,6 @@ export default function App() {
     <Card sx={{ p: 2 }}>
       <Typography variant="h4" align="center" gutterBottom>Eventos</Typography>
 
-      {/* Select para filtrar por track */}
       <Box sx={{ mb: 2 }}>
         <Select
           value={filterTrack}
@@ -80,7 +96,55 @@ export default function App() {
         </Select>
       </Box>
 
-      <Box sx={{ overflowX: 'auto' }}>
+      <Button variant="contained" color="primary" onClick={handleOpen}>
+        Crear Evento
+      </Button>
+
+      <Modal open={open} onClose={handleClose}>
+        <Box sx={{ 
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          width: 400, bgcolor: 'background.paper', p: 4, boxShadow: 24, borderRadius: 2 
+        }}>
+          <Typography variant="h6" gutterBottom>Crear nuevo evento</Typography>
+          <TextField
+            label="Nombre"
+            name="nombre"
+            value={newEvent.nombre}
+            onChange={handleInputChange}
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Expositor"
+            name="expo"
+            value={newEvent.expo}
+            onChange={handleInputChange}
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Hora"
+            name="hora"
+            value={newEvent.hora}
+            onChange={handleInputChange}
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Track"
+            name="track"
+            value={newEvent.track}
+            onChange={handleInputChange}
+            fullWidth
+            margin="normal"
+          />
+          <Button variant="contained" color="primary" onClick={handleAddEvent} sx={{ mt: 2 }}>
+            Agregar Evento
+          </Button>
+        </Box>
+      </Modal>
+
+      <Box sx={{ overflowX: 'auto', mt: 2 }}>
         <Table sx={{ minWidth: isMobile ? 300 : 650 }}>
           <TableHead>
             <TableRow>
@@ -106,7 +170,7 @@ export default function App() {
                     >
                       <MenuItem value="No ha comenzado">No ha comenzado</MenuItem>
                       <MenuItem value="En proceso">En proceso</MenuItem>
-                      <MenuItem value="Atrasado">Finalizado</MenuItem>
+                      <MenuItem value="Finalizado">Finalizado</MenuItem>
                     </Select>
                   </TableCell>
                 </TableRow>
