@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, TableBody, TableCell, TableHead, TableRow, Typography, Box, Select, MenuItem, useMediaQuery, Button, Modal, TextField } from '@mui/material';
-import { collection, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from "./firebaseconfig";
 import { useTheme } from '@mui/material/styles';
 
@@ -8,7 +8,8 @@ export default function App() {
   const [data, setData] = useState([]);
   const [filterTrack, setFilterTrack] = useState('');
   const [tracks, setTracks] = useState([]);
-  const [open, setOpen] = useState(false); // Estado para controlar el modal
+  const [open, setOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
   const [newEvent, setNewEvent] = useState({ nombre: '', expo: '', hora: '', track: '', estado: 'No ha comenzado' });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -47,7 +48,11 @@ export default function App() {
   };
 
   const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
+  const handleClose = () => {
+    setOpen(false);
+    setEditingEvent(null);
+    setNewEvent({ nombre: '', expo: '', hora: '', track: '', estado: 'No ha comenzado' });
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -56,11 +61,30 @@ export default function App() {
 
   const handleAddEvent = async () => {
     try {
-      await addDoc(collection(db, 'devfest'), newEvent);
-      setNewEvent({ nombre: '', expo: '', hora: '', track: '', estado: 'No ha comenzado' });
+      if (editingEvent) {
+        const eventRef = doc(db, 'devfest', editingEvent.id);
+        await updateDoc(eventRef, newEvent);
+      } else {
+        await addDoc(collection(db, 'devfest'), newEvent);
+      }
       handleClose();
     } catch (error) {
-      console.error("Error al agregar el evento: ", error);
+      console.error("Error al agregar o actualizar el evento: ", error);
+    }
+  };
+
+  const handleEditEvent = (event) => {
+    setEditingEvent(event);
+    setNewEvent(event);
+    handleOpen();
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    try {
+      const eventRef = doc(db, 'devfest', eventId);
+      await deleteDoc(eventRef);
+    } catch (error) {
+      console.error("Error al eliminar el evento: ", error);
     }
   };
 
@@ -105,7 +129,9 @@ export default function App() {
           position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
           width: 400, bgcolor: 'background.paper', p: 4, boxShadow: 24, borderRadius: 2 
         }}>
-          <Typography variant="h6" gutterBottom>Crear nuevo evento</Typography>
+          <Typography variant="h6" gutterBottom>
+            {editingEvent ? "Editar evento" : "Crear nuevo evento"}
+          </Typography>
           <TextField
             label="Nombre"
             name="nombre"
@@ -139,7 +165,7 @@ export default function App() {
             margin="normal"
           />
           <Button variant="contained" color="primary" onClick={handleAddEvent} sx={{ mt: 2 }}>
-            Agregar Evento
+            {editingEvent ? "Guardar cambios" : "Agregar Evento"}
           </Button>
         </Box>
       </Modal>
@@ -153,6 +179,7 @@ export default function App() {
               <TableCell>Hora</TableCell>
               <TableCell>Track</TableCell>
               <TableCell>Estado</TableCell>
+              <TableCell>Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -173,11 +200,19 @@ export default function App() {
                       <MenuItem value="Finalizado">Finalizado</MenuItem>
                     </Select>
                   </TableCell>
+                  <TableCell>
+                    <Button variant="outlined" onClick={() => handleEditEvent(item)}>
+                      Editar
+                    </Button>
+                    <Button variant="outlined" color="error" onClick={() => handleDeleteEvent(item.id)} sx={{ ml: 1 }}>
+                      Eliminar
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5}>No hay tracks</TableCell>
+                <TableCell colSpan={6}>No hay tracks</TableCell>
               </TableRow>
             )}
           </TableBody>
